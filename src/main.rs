@@ -27,6 +27,13 @@ struct Args {
     #[arg(short, long, default_value = "FLOP")]
     element_throughput_unit: Box<str>,
 
+    /// Label of the horizontal axis
+    ///
+    /// Depending on the project, this can be an input size or an iteration
+    /// count, so we need full control over labeling there.
+    #[arg(short, long, default_value = "Input size (f32s)")]
+    x_label: Box<str>,
+
     /// Regex matching the traces to be plotted
     regex: Regex,
 }
