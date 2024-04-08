@@ -20,9 +20,12 @@ struct Args {
     #[arg(short, long, default_value = "./output.svg")]
     output_path: Box<Path>,
 
-    /// Base label for element throughput
-    #[arg(short, long, default_value = "FLOP/s")]
-    throughput_name: Box<str>,
+    /// Unit of element-based throughput measurement
+    ///
+    /// This will be used, along with an SI prefix and a "per second" suffix, to
+    /// label the plot's vertical axis in the presence of such measurements.
+    #[arg(short, long, default_value = "FLOP")]
+    element_throughput_unit: Box<str>,
 
     /// Regex matching the traces to be plotted
     regex: Regex,
