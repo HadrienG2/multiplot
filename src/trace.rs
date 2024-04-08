@@ -14,7 +14,7 @@ pub struct Traces {
     throughput_type: Option<ThroughputType>,
 
     /// Trace data
-    traces: Box<[Trace]>,
+    per_trace_data: Box<[Trace]>,
 }
 //
 impl Traces {
@@ -51,7 +51,7 @@ impl Traces {
                 "there should be only one data point associated with value {value}"
             );
         }
-        let traces = name_to_trace
+        let per_trace_data = name_to_trace
             .into_iter()
             .map(|(name, data)| Trace {
                 name,
@@ -60,8 +60,13 @@ impl Traces {
             .collect();
         Ok(Self {
             throughput_type: common_throughput_type,
-            traces,
+            per_trace_data,
         })
+    }
+
+    /// Number of traces
+    pub fn len(&self) -> usize {
+        self.per_trace_data.len()
     }
 }
 

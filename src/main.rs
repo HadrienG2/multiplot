@@ -4,6 +4,7 @@ mod trace;
 use crate::trace::Traces;
 use anyhow::Context;
 use clap::Parser;
+use colorous::WARM;
 use regex::Regex;
 use std::path::Path;
 
@@ -46,17 +47,25 @@ fn main() -> Result<()> {
 
     // Rearrange data in a layout suitable for plotting
     let traces = Traces::new(data)?;
-    println!("Traces to be plotted: {traces:#?}");
 
-    // TODO: Pick one color per trace from regularly spaced points on
-    //       colorous::WARM or colorous::COOL or colorous::PLASMA, if that
-    //       doesn't work well go for plotters Palette99 as first priority and
-    //       fall back to gradient sampling if there are too many traces.
+    // Give each trace a color
+    let colors = (0..traces.len())
+        .map(|idx| {
+            let coord = idx as f64 / (traces.len() - 1) as f64;
+            // TODO: If that doesn't work well, also try COOL and PLASMA.
+            //       If all est fails, go for plotters' Palette99 as first
+            //       priority and fall back to gradient sampling when there are
+            //       too many traces for the fixed palette.
+            WARM.eval_continuous(coord)
+        })
+        .collect::<Box<[_]>>();
 
     // TODO: Draw the plot, with error bars
     // see
     // https://github.com/plotters-rs/plotters/blob/master/plotters/examples/errorbar.rs
     // TODO: Add axis
+    println!("Will now plot traces {traces:#?}");
+    println!("...with colors {colors:#?}");
 
     Ok(())
 }
