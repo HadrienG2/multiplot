@@ -130,15 +130,23 @@ pub struct Benchmark {
     pub group_id: Box<str>,
 
     /// Value of the benchmark within the group
-    ///
-    /// Criterion technically allows any string in here, but I almost always use
-    /// this field to record the input size or iteration count, and Plotters
-    /// needs it to be a number for axis construction anyway...
-    #[serde(rename = "value_str")]
-    pub value: usize,
+    pub value_str: Box<str>,
 
     /// Throughput configuration
     pub throughput: Throughput,
+}
+//
+impl Benchmark {
+    /// Decode the benchmark value as an integer
+    ///
+    /// Criterion allows any string in here, but I always use this field to
+    /// record the input size or iteration count, and Plotters needs it to be a
+    /// number for axis construction anyway...
+    pub fn value_usize(&self) -> Result<usize> {
+        self.value_str
+            .parse()
+            .context("expected a usize criterion benchmark ID, got something else")
+    }
 }
 
 /// We reuse criterion's Throughput type, which is fine as long as it does not
