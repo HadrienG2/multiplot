@@ -53,7 +53,9 @@ fn main() -> Result<()> {
     //       with the same throughput type along the way.
 
     // TODO: Pick one color per trace from regularly spaced points on
-    //       colorous::WARM or colorous::COOL
+    //       colorous::WARM or colorous::COOL or colorous::PLASMA, if that
+    //       doesn't work well go for plotters Palette99 as first priority and
+    //       fall back to gradient sampling if there are too many traces.
 
     // TODO: Draw the plot, with error bars
     // see
