@@ -129,6 +129,14 @@ pub struct Benchmark {
     /// Name of the benchmark group
     pub group_id: Box<str>,
 
+    /// Value of the benchmark within the group
+    ///
+    /// Criterion technically allows any string in here, but I almost always use
+    /// this field to record the input size or iteration count, and Plotters
+    /// needs it to be a number for axis construction anyway...
+    #[serde(rename = "value_str")]
+    pub value: usize,
+
     /// Throughput configuration
     pub throughput: Throughput,
 }
