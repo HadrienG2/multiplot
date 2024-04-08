@@ -1,12 +1,12 @@
 mod criterion;
+mod plot;
 mod trace;
 
 use crate::trace::Traces;
 use anyhow::Context;
 use clap::Parser;
-use colorous::WARM;
 use regex::Regex;
-use std::path::Path;
+use std::{num::NonZeroU32, path::Path};
 
 /// Simple bulk plotter from criterion data
 #[derive(Debug, Parser)]
@@ -19,6 +19,18 @@ struct Args {
     /// Name of output image
     #[arg(short, long, default_value = "./output.svg")]
     output_path: Box<Path>,
+
+    /// Width of the output image in pixels
+    #[arg(short = 'W', long, default_value = "1920")]
+    width: NonZeroU32,
+
+    /// Height of the output image in pixels
+    #[arg(short = 'H', long, default_value = "1080")]
+    height: NonZeroU32,
+
+    /// Title of the plot
+    #[arg(short, long, default_value = "Benchmark results")]
+    title: Box<str>,
 
     /// Unit of element-based throughput measurement
     ///
@@ -38,6 +50,13 @@ struct Args {
     regex: Regex,
 }
 //
+impl Args {
+    /// Plot size in plotters's expected format
+    fn plot_size(&self) -> (u32, u32) {
+        (self.width.get(), self.height.get())
+    }
+}
+//
 fn main() -> Result<()> {
     // Parse CLI arguments
     let args = Args::parse();
@@ -46,28 +65,10 @@ fn main() -> Result<()> {
     let data = criterion::read_all(&args).context("loading data from Criterion")?;
 
     // Rearrange data in a layout suitable for plotting
-    let traces = Traces::new(data)?;
+    let traces = Traces::new(data).context("rearranging data into plot traces")?;
 
-    // Give each trace a color
-    let colors = (0..traces.len())
-        .map(|idx| {
-            let coord = idx as f64 / (traces.len() - 1) as f64;
-            // TODO: If that doesn't work well, also try COOL and PLASMA.
-            //       If all est fails, go for plotters' Palette99 as first
-            //       priority and fall back to gradient sampling when there are
-            //       too many traces for the fixed palette.
-            WARM.eval_continuous(coord)
-        })
-        .collect::<Box<[_]>>();
-
-    // TODO: Draw the plot, with error bars
-    // see
-    // https://github.com/plotters-rs/plotters/blob/master/plotters/examples/errorbar.rs
-    // TODO: Add axis
-    println!("Will now plot traces {traces:#?}");
-    println!("...with colors {colors:#?}");
-
-    Ok(())
+    // Draw the plot
+    plot::draw(&args, traces).context("drawing the performance plot")
 }
 
 /// Use anyhow for error handling convenience

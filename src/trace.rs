@@ -5,16 +5,17 @@ use crate::{
     Result,
 };
 use anyhow::ensure;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, ops::Range};
 
 /// Set of traces to be plotted
 #[derive(Clone, Debug, Default, PartialEq, PartialOrd)]
 pub struct Traces {
     /// Throughput configuration, if any
-    throughput_type: Option<ThroughputType>,
+    pub throughput: Option<ThroughputType>,
 
+    /* /// Vertical axis multiple */
     /// Trace data
-    per_trace_data: Box<[Trace]>,
+    pub per_trace_data: Box<[Trace]>,
 }
 //
 impl Traces {
@@ -59,7 +60,7 @@ impl Traces {
             })
             .collect();
         Ok(Self {
-            throughput_type: common_throughput_type,
+            throughput: common_throughput_type,
             per_trace_data,
         })
     }
@@ -68,16 +69,47 @@ impl Traces {
     pub fn len(&self) -> usize {
         self.per_trace_data.len()
     }
+
+    /// Horizontal and vertical range covered by traces
+    pub fn xy_range(&self) -> (Range<f64>, Range<f32>) {
+        let min_x = self
+            .per_trace_data
+            .iter()
+            .map(|trace| trace.data.first().expect("traces can't be empty").0)
+            .min()
+            .expect("there should be >= 1 trace") as f64;
+        let max_x = self
+            .per_trace_data
+            .iter()
+            .map(|trace| trace.data.last().expect("traces can't be empty").0)
+            .max()
+            .expect("there should be >= 1 trace") as f64;
+        let min_y = self
+            .per_trace_data
+            .iter()
+            .flat_map(|trace| trace.data.iter())
+            .map(|(_, meas)| meas.lower_bound)
+            .min_by(f32::total_cmp)
+            .expect("there should be >= 1 trace");
+        let max_y = self
+            .per_trace_data
+            .iter()
+            .flat_map(|trace| trace.data.iter())
+            .map(|(_, meas)| meas.upper_bound)
+            .max_by(f32::total_cmp)
+            .expect("there should be >= 1 trace");
+        (min_x..max_x, min_y..max_y)
+    }
 }
 
 /// Trace to be plotted
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct Trace {
     /// Name of the trace
-    name: Box<str>,
+    pub name: Box<str>,
 
     /// Data to be plotted
-    data: Box<[(ProblemSize, MeasurementDisplay)]>,
+    pub data: Box<[(ProblemSize, MeasurementDisplay)]>,
 }
 
 /// Horizontal coordinate of a criterion benchmark
@@ -86,14 +118,14 @@ pub type ProblemSize = usize;
 /// Summary of a criterion benchmark measurement for display
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub struct MeasurementDisplay {
-    /// Central value
-    point_estimate: f32,
-
     /// 95% lower bound
-    lower_bound: f32,
+    pub lower_bound: f32,
+
+    /// Central value
+    pub point_estimate: f32,
 
     /// 95% upper bound
-    upper_bound: f32,
+    pub upper_bound: f32,
 }
 //
 impl MeasurementDisplay {
@@ -101,16 +133,16 @@ impl MeasurementDisplay {
     ///
     /// This function has two correctness preconditions:
     ///
-    /// - The source measurement must be a timing measurement (e.g. the direct
-    ///   result of converting a criterion median Estimate)
+    /// - The source measurement must be a timing measurement in nanoseconds
+    ///   (e.g. the direct result of converting a criterion median Estimate)
     /// - For the final plot to make sense, all measurements must have the same
     ///   [`ThroughputType`].
     fn time_to_throughput(self, untyped_throughput: u64) -> Self {
         let untyped_throughput = untyped_throughput as f32;
         Self {
-            point_estimate: untyped_throughput / self.point_estimate,
-            lower_bound: untyped_throughput / self.upper_bound,
-            upper_bound: untyped_throughput / self.lower_bound,
+            point_estimate: untyped_throughput / (self.point_estimate * 1e-9),
+            lower_bound: untyped_throughput / (self.upper_bound * 1e-9),
+            upper_bound: untyped_throughput / (self.lower_bound * 1e-9),
         }
     }
 }
