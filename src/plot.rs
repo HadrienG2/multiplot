@@ -25,6 +25,17 @@ pub fn draw(args: &Args, traces: Traces) -> Result<()> {
 
     // Determine the plotting range
     let (x_range, y_range) = traces.xy_range();
+    let y_key_points = {
+        let first_unit_key_point = y_range.start.log10().floor() as i32;
+        let last_unit_key_point = y_range.end.log10().ceil() as i32;
+        (first_unit_key_point..=last_unit_key_point)
+            .flat_map(|pow| {
+                let magnitude = 10.0f32.powi(pow);
+                [1.0 * magnitude, 2.0 * magnitude, 5.0 * magnitude]
+            })
+            .filter(|key| y_range.contains(key))
+            .collect::<Vec<_>>()
+    };
 
     // Set up the chart
     let mut chart = ChartBuilder::on(&root);
@@ -32,14 +43,12 @@ pub fn draw(args: &Args, traces: Traces) -> Result<()> {
         chart.caption(&args.title, ("sans-serif", 5.percent_height()));
     }
     let mut chart = chart
-        .set_label_area_size(LabelAreaPosition::Left, 12.percent_width())
+        .set_label_area_size(LabelAreaPosition::Left, 6.percent_width())
         .set_label_area_size(LabelAreaPosition::Bottom, 5.percent_height())
         .margin(1.percent())
         .build_cartesian_2d(
             x_range.log_scale(),
-            y_range.log_scale().with_key_points(vec![
-                2.0e8, 5.0e8, 1.0e9, 2.0e9, 5.0e9, 1.0e10, 2.0e10, 5.0e10,
-            ]),
+            y_range.log_scale().with_key_points(y_key_points),
         )
         .context("setting up the plot's chart")?;
 
@@ -47,10 +56,16 @@ pub fn draw(args: &Args, traces: Traces) -> Result<()> {
     chart
         .configure_mesh()
         .x_desc(args.x_label.to_string())
+        .x_label_formatter(&|coord| format!("10^{}", coord.log10().floor() as i32))
         .y_desc(match traces.throughput {
             None => "s".to_string(),
             Some(ThroughputType::Bytes) | Some(ThroughputType::BytesDecimal) => "B/s".to_string(),
             Some(ThroughputType::Elements) => format!("{}/s", args.element_throughput_unit),
+        })
+        .y_label_formatter(&|coord| {
+            let si_power = (coord.log10() / 3.0).floor() as i32 * 3;
+            let base = coord / 10.0f32.powi(si_power);
+            format!("{base:.0}.10^{si_power}")
         })
         .label_style(("sans-serif", 2.percent_height()))
         .draw()
