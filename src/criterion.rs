@@ -63,10 +63,6 @@ pub fn read_all(args: &Args) -> Result<Vec<BenchmarkInfo>> {
             "estimates" => {
                 let estimates = serde_json::from_slice::<Estimates>(&json_bytes[..])
                     .context("Failed to decode criterion benchmark result estimates")?;
-                ensure!(
-                    estimates.median.confidence_interval.confidence_level == 0.95,
-                    "Expecting standard 95% confidence intervals from Criterion"
-                );
                 benchmark_info.estimates = Some(estimates);
             }
             _ => bail!("No support for parsing this Criterion output yet"),
@@ -133,6 +129,8 @@ pub struct Benchmark {
     pub value_str: Box<str>,
 
     /// Throughput configuration
+    //
+    // TODO: Handle non-throughput (pure timing) measurements
     pub throughput: Throughput,
 }
 //
@@ -152,6 +150,36 @@ impl Benchmark {
 /// We reuse criterion's Throughput type, which is fine as long as it does not
 /// change too often...
 pub use criterion::Throughput;
+
+/// [`Throughput`] type information, without a value
+#[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum ThroughputType {
+    /// Measure throughput in terms of bytes/second. The value should be the
+    /// number of bytes processed by one iteration of the benchmarked code.
+    /// Typically, this would be the length of an input string or &[u8].
+    Bytes,
+
+    /// Equivalent to Bytes, but the value will be reported in terms of
+    /// kilobytes (1000 bytes) per second instead of kibibytes (1024 bytes) per
+    /// second, megabytes instead of mibibytes, and gigabytes instead of
+    /// gibibytes.
+    BytesDecimal,
+
+    /// Measure throughput in terms of elements/second. The value should be the
+    /// number of elements processed by one iteration of the benchmarked code.
+    /// Typically, this would be the size of a collection, but could also be the
+    /// number of lines of input text or the number of values to parse.
+    Elements,
+}
+
+/// Split the throughput type information from the inner value
+pub fn split_throughput(throughput: Throughput) -> (ThroughputType, u64) {
+    match throughput {
+        Throughput::Bytes(b) => (ThroughputType::Bytes, b),
+        Throughput::BytesDecimal(d) => (ThroughputType::BytesDecimal, d),
+        Throughput::Elements(e) => (ThroughputType::Elements, e),
+    }
+}
 
 /// Criterion estimates
 #[derive(Debug, Deserialize)]

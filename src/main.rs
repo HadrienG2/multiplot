@@ -1,12 +1,11 @@
 mod criterion;
+mod trace;
 
+use crate::trace::Traces;
 use anyhow::Context;
 use clap::Parser;
 use regex::Regex;
 use std::path::Path;
-
-/// Use anyhow for error handling convenience
-pub use anyhow::Result;
 
 /// Simple bulk plotter from criterion data
 #[derive(Debug, Parser)]
@@ -37,20 +36,17 @@ struct Args {
     /// Regex matching the traces to be plotted
     regex: Regex,
 }
-
+//
 fn main() -> Result<()> {
     // Parse CLI arguments
     let args = Args::parse();
 
     // Load data points from Criterion
-    let data = criterion::read_all(&args).context("Loading data from Criterion")?;
+    let data = criterion::read_all(&args).context("loading data from Criterion")?;
 
-    // TODO: Shuffle data into a form suitable for plotting (BTreeMap from trace
-    //       name to BTreeMap from throughput to median estimate -> eventually
-    //       sorted list of traces with sorted list of (throughput, median
-    //       estimates) points for each)
-    // TODO: Check that all points associated with each trace are associated
-    //       with the same throughput type along the way.
+    // Rearrange data in a layout suitable for plotting
+    let traces = Traces::new(data)?;
+    println!("Traces to be plotted: {traces:#?}");
 
     // TODO: Pick one color per trace from regularly spaced points on
     //       colorous::WARM or colorous::COOL or colorous::PLASMA, if that
@@ -61,7 +57,9 @@ fn main() -> Result<()> {
     // see
     // https://github.com/plotters-rs/plotters/blob/master/plotters/examples/errorbar.rs
     // TODO: Add axis
-    dbg!(data);
 
     Ok(())
 }
+
+/// Use anyhow for error handling convenience
+pub use anyhow::Result;
