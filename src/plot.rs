@@ -8,6 +8,7 @@ use plotters_backend::{
     BackendColor, BackendCoord, BackendStyle, BackendTextStyle, DrawingErrorKind,
 };
 use std::{
+    borrow::Cow,
     error::Error,
     fmt::{self, Display, Formatter},
     ops::{Deref, DerefMut},
@@ -42,8 +43,8 @@ pub fn draw(args: &Args, traces: Traces) -> Result<()> {
         chart.caption(&args.title, ("sans-serif", 5.percent_height()));
     }
     let mut chart = chart
-        .set_label_area_size(LabelAreaPosition::Left, 8.percent_width())
-        .set_label_area_size(LabelAreaPosition::Bottom, 7.percent_height())
+        .set_label_area_size(LabelAreaPosition::Left, 7.percent_width())
+        .set_label_area_size(LabelAreaPosition::Bottom, 8.percent_height())
         .margin(1.percent())
         .build_cartesian_2d(x_range.log_scale(), y_range.log_scale())
         .context("setting up the plot's chart")?;
@@ -54,15 +55,15 @@ pub fn draw(args: &Args, traces: Traces) -> Result<()> {
         .x_desc(args.x_label.to_string())
         .x_label_formatter(&|coord| format!("10^{}", coord.log10().floor() as i32))
         .y_desc(match traces.throughput {
-            None => "s".to_string(),
-            Some(ThroughputType::Bytes) | Some(ThroughputType::BytesDecimal) => "B/s".to_string(),
-            Some(ThroughputType::Elements) => format!("{}/s", args.element_throughput_unit),
+            None => "Time (s)".to_string(),
+            Some(ThroughputType::Bytes) | Some(ThroughputType::BytesDecimal) => {
+                "Bandwidth (B/s)".to_string()
+            }
+            Some(ThroughputType::Elements) => {
+                format!("Throughput ({}/s)", args.element_throughput_unit)
+            }
         })
-        .y_label_formatter(&|coord| {
-            let si_power = (coord.log10() / 3.0).floor() as i32 * 3;
-            let base = coord / 10.0f32.powi(si_power);
-            format!("{base:.0}.10^{si_power}")
-        })
+        .y_label_formatter(&axis_label_si)
         .label_style(("sans-serif", 3.percent_height()))
         .draw()
         .context("setting up the plot's mesh")?;
@@ -407,4 +408,35 @@ impl Error for AnyhowError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         self.0.source()
     }
+}
+
+/// Render an axis label using SI prefixes, if available
+fn axis_label_si(coord: &f32) -> String {
+    let si_power = (coord.log10() / 3.0).floor() as i32 * 3;
+    let si_prefix: Cow<str> = match si_power {
+        -30 => "q".into(),
+        -27 => "r".into(),
+        -24 => "y".into(),
+        -21 => "z".into(),
+        -18 => "a".into(),
+        -15 => "f".into(),
+        -12 => "p".into(),
+        -9 => "n".into(),
+        -6 => "µ".into(),
+        -3 => "m".into(),
+        0 => "".into(),
+        3 => "k".into(),
+        6 => "M".into(),
+        9 => "G".into(),
+        12 => "T".into(),
+        15 => "P".into(),
+        18 => "E".into(),
+        21 => "Z".into(),
+        24 => "Y".into(),
+        27 => "R".into(),
+        30 => "Q".into(),
+        other => format!(".10^{other}").into(),
+    };
+    let base = coord / 10.0f32.powi(si_power);
+    format!("{base:.0}{si_prefix}")
 }
