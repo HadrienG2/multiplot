@@ -24,18 +24,17 @@ pub fn draw(args: &Args, traces: Traces) -> Result<()> {
         .context("filling the plot's drawing area")?;
 
     // Determine the plotting range
-    let (x_range, y_range) = traces.xy_range();
-    let y_key_points = {
-        let first_unit_key_point = y_range.start.log10().floor() as i32;
-        let last_unit_key_point = y_range.end.log10().ceil() as i32;
-        (first_unit_key_point..=last_unit_key_point)
-            .flat_map(|pow| {
-                let magnitude = 10.0f32.powi(pow);
-                [1.0 * magnitude, 2.0 * magnitude, 5.0 * magnitude]
-            })
-            .filter(|key| y_range.contains(key))
-            .collect::<Vec<_>>()
-    };
+    let (x_range, mut y_range) = traces.xy_range();
+    if let Some(min_y) = args.min_y {
+        y_range.start = min_y;
+    } else {
+        y_range.start *= 0.5;
+    }
+    if let Some(max_y) = args.max_y {
+        y_range.end = max_y;
+    } else {
+        y_range.end *= 2.0;
+    }
 
     // Set up the chart
     let mut chart = ChartBuilder::on(&root);
@@ -43,13 +42,10 @@ pub fn draw(args: &Args, traces: Traces) -> Result<()> {
         chart.caption(&args.title, ("sans-serif", 5.percent_height()));
     }
     let mut chart = chart
-        .set_label_area_size(LabelAreaPosition::Left, 6.percent_width())
-        .set_label_area_size(LabelAreaPosition::Bottom, 5.percent_height())
+        .set_label_area_size(LabelAreaPosition::Left, 8.percent_width())
+        .set_label_area_size(LabelAreaPosition::Bottom, 7.percent_height())
         .margin(1.percent())
-        .build_cartesian_2d(
-            x_range.log_scale(),
-            y_range.log_scale().with_key_points(y_key_points),
-        )
+        .build_cartesian_2d(x_range.log_scale(), y_range.log_scale())
         .context("setting up the plot's chart")?;
 
     // Set up the mesh
@@ -67,7 +63,7 @@ pub fn draw(args: &Args, traces: Traces) -> Result<()> {
             let base = coord / 10.0f32.powi(si_power);
             format!("{base:.0}.10^{si_power}")
         })
-        .label_style(("sans-serif", 2.percent_height()))
+        .label_style(("sans-serif", 3.percent_height()))
         .draw()
         .context("setting up the plot's mesh")?;
 
@@ -101,7 +97,7 @@ pub fn draw(args: &Args, traces: Traces) -> Result<()> {
                 meas.point_estimate,
                 meas.upper_bound,
                 color,
-                (0.008 * args.height.get() as f32) as u32,
+                (0.01 * args.height.get() as f32) as u32,
             )
         }))?;
     }
@@ -113,7 +109,7 @@ pub fn draw(args: &Args, traces: Traces) -> Result<()> {
         .background_style(WHITE.filled())
         .position(SeriesLabelPosition::LowerRight)
         .label_font({
-            let ideal_size_percent = 2.25f64;
+            let ideal_size_percent = 2.8f64;
             let max_size_percent = 50.0 / num_traces as f64;
             (
                 "sans-serif",

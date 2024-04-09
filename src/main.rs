@@ -32,6 +32,18 @@ struct Args {
     #[arg(short, long, default_value = "Benchmark results")]
     title: Box<str>,
 
+    /// Forced lower bound of the Y axis
+    ///
+    /// Will automatically set the Y scale to fit all traces by default
+    #[arg(short = 'y', long, default_value = None)]
+    min_y: Option<f32>,
+
+    /// Forced upper bound of the Y axis
+    ///
+    /// Will automatically set the Y scale to fit all traces by default
+    #[arg(short = 'Y', long, default_value = None)]
+    max_y: Option<f32>,
+
     /// Unit of element-based throughput measurement
     ///
     /// This will be used, along with an SI prefix and a "per second" suffix, to
