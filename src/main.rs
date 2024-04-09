@@ -3,7 +3,7 @@ mod plot;
 mod trace;
 
 use crate::trace::Traces;
-use anyhow::Context;
+use anyhow::{bail, Context};
 use clap::Parser;
 use regex::Regex;
 use std::{num::NonZeroU32, path::Path};
@@ -66,6 +66,11 @@ fn main() -> Result<()> {
 
     // Rearrange data in a layout suitable for plotting
     let traces = Traces::new(data).context("rearranging data into plot traces")?;
+
+    // Abort if there is nothing to plot
+    if traces.is_empty() {
+        bail!("Specified regex does not select any trace!")
+    }
 
     // Draw the plot
     plot::draw(&args, traces).context("drawing the performance plot")

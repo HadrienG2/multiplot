@@ -5,7 +5,7 @@ use crate::{
     Result,
 };
 use anyhow::ensure;
-use std::{collections::BTreeMap, ops::Range};
+use std::{cmp::Ordering, collections::BTreeMap, iter::Peekable, ops::Range, str::CharIndices};
 
 /// Set of traces to be plotted
 #[derive(Clone, Debug, Default, PartialEq, PartialOrd)]
@@ -21,7 +21,7 @@ pub struct Traces {
 impl Traces {
     /// Build traces from criterion benchmark data
     pub fn new(data: impl IntoIterator<Item = BenchmarkInfo>) -> Result<Self> {
-        let mut name_to_trace = BTreeMap::<Box<str>, BTreeMap<usize, MeasurementDisplay>>::new();
+        let mut name_to_trace = BTreeMap::<TraceName, BTreeMap<usize, MeasurementDisplay>>::new();
         let mut common_throughput_type = None;
         for benchmark_info in data {
             let BenchmarkInfo {
@@ -46,7 +46,7 @@ impl Traces {
             let measurement = MeasurementDisplay::try_from(estimates.median)?
                 .time_to_throughput(untyped_throughput);
 
-            let trace = name_to_trace.entry(group_id).or_default();
+            let trace = name_to_trace.entry(TraceName(group_id)).or_default();
             ensure!(
                 trace.insert(value, measurement).is_none(),
                 "there should be only one data point associated with value {value}"
@@ -55,7 +55,7 @@ impl Traces {
         let per_trace_data = name_to_trace
             .into_iter()
             .map(|(name, data)| Trace {
-                name,
+                name: name.0,
                 data: data.into_iter().collect(),
             })
             .collect();
@@ -68,6 +68,11 @@ impl Traces {
     /// Number of traces
     pub fn len(&self) -> usize {
         self.per_trace_data.len()
+    }
+
+    /// Absence of traces
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     /// Horizontal and vertical range covered by traces
@@ -100,6 +105,101 @@ impl Traces {
             .expect("there should be >= 1 trace");
         (min_x..max_x, min_y..max_y)
     }
+}
+
+/// Trace name newtype with a more sensible ordering
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct TraceName(Box<str>);
+//
+impl PartialOrd for TraceName {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+//
+impl Ord for TraceName {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let (mut segments1, mut segments2) = (self.0.split('/'), other.0.split('/'));
+        loop {
+            // Extract next pair of name segments to be compared, apply trivial
+            // ordering if we're done with one of the trace names.
+            let (segment1, segment2) = match (segments1.next(), segments2.next()) {
+                (Some(s1), Some(s2)) => (s1, s2),
+                (Some(_), None) => return Ordering::Greater,
+                (None, Some(_)) => return Ordering::Less,
+                (None, None) => return Ordering::Equal,
+            };
+
+            // Split each text segment into a stream of numbers and
+            // non-numerical text
+            let (mut fragments1, mut fragments2) =
+                (TextAndNumbers::new(segment1), TextAndNumbers::new(segment2));
+            loop {
+                // Pick next pair of codepoints, handle trivial cases
+                match (fragments1.next(), fragments2.next()) {
+                    (Some(frag1), Some(frag2)) => match frag1.cmp(&frag2) {
+                        Ordering::Less => return Ordering::Less,
+                        Ordering::Equal => continue,
+                        Ordering::Greater => return Ordering::Greater,
+                    },
+                    (Some(_), None) => return Ordering::Greater,
+                    (None, Some(_)) => return Ordering::Less,
+                    (None, None) => break,
+                };
+            }
+        }
+    }
+}
+
+/// Decompose a string into a sequence of decimal numbers and non-numerical text
+#[derive(Debug)]
+struct TextAndNumbers<'source> {
+    /// Source string
+    source: &'source str,
+
+    /// Iterator over chars of `source` and associated indices
+    char_indices: Peekable<CharIndices<'source>>,
+}
+//
+impl<'source> TextAndNumbers<'source> {
+    /// Start decomposing the source string
+    pub fn new(source: &'source str) -> Self {
+        Self {
+            source,
+            char_indices: source.char_indices().peekable(),
+        }
+    }
+}
+//
+impl<'source> Iterator for TextAndNumbers<'source> {
+    type Item = TextOrNumber<'source>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (start_idx, first_char) = self.char_indices.peek().copied()?;
+        let parsing_number = first_char.is_ascii_digit();
+        let (end_idx, _last_char) = std::iter::from_fn(|| {
+            self.char_indices
+                .next_if(|(_idx, c)| c.is_ascii_digit() == parsing_number)
+        })
+        .last()?;
+        let selected = &self.source[start_idx..=end_idx];
+        let result = if parsing_number {
+            TextOrNumber::Number(selected.parse().expect("only picked base-10 digits"))
+        } else {
+            TextOrNumber::Text(selected)
+        };
+        Some(result)
+    }
+}
+
+/// Either a decimal number or non-numerical text
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+enum TextOrNumber<'source> {
+    /// Non-numerical text
+    Text(&'source str),
+
+    /// Decimal number
+    Number(usize),
 }
 
 /// Trace to be plotted
