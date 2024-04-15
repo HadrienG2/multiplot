@@ -81,7 +81,7 @@ fn main() -> Result<()> {
 
     // Abort if there is nothing to plot
     if traces.is_empty() {
-        bail!("Specified regex does not select any trace!")
+        bail!("specified regex does not select any trace")
     }
 
     // Draw the plot

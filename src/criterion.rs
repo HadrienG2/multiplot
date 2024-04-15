@@ -189,7 +189,7 @@ pub struct Estimates {
     pub median: Estimate,
 }
 
-/// Single criterion estimage
+/// Single criterion estimate
 #[derive(Debug, Deserialize)]
 pub struct Estimate {
     /// Confidence interval
